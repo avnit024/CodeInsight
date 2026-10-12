@@ -1,0 +1,32 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CodeInsight - Profiles</title>
+<link rel="stylesheet" href="css/style.css"><script src="js/app.js"></script></head>
+<body><main id="main"><div class="grid g2">
+<div class="card"><h3>LeetCode</h3><div class="row"><input id="lc" placeholder="LeetCode username"><button onclick="lcFetch()">Fetch</button><button class="sec" title="Import recent accepted submissions" onclick="lcSync()">Sync problems</button></div><div id="lo"><p class="muted">Enter your username to load solved counts.</p></div></div>
+<div class="card"><h3>Codeforces</h3><div class="row"><input id="cf" placeholder="Codeforces handle"><button onclick="cfFetch()">Fetch</button></div><div id="co"><p class="muted">Enter your handle to load your rating.</p></div></div>
+<div class="card"><h3>AtCoder</h3><div class="row"><input id="ac" placeholder="AtCoder username"><button onclick="ld('atcoder','ac','ao',rAc)">Fetch</button></div><div id="ao"><p class="muted">Contest rating and history.</p></div></div>
+<div class="card"><h3>CodeChef <span class="muted">(best effort)</span></h3><div class="row"><input id="cc" placeholder="CodeChef username"><button onclick="ld('codechef','cc','cco',rAc)">Fetch</button></div><div id="cco"><p class="muted">Reads the public profile page.</p></div></div>
+<div class="card"><h3>GitHub</h3><div class="row"><input id="gh" placeholder="GitHub username"><button onclick="ld('github','gh','go',rGh)">Fetch</button></div><div id="go"><p class="muted">Repos and followers.</p></div></div>
+</div></main>
+<script>
+shell('profiles','Platform Profiles');
+$('lc').value=localStorage.getItem('lc')||'';$('cf').value=localStorage.getItem('cf')||'';
+const col={Easy:'#16a34a',Medium:'#d97706',Hard:'#dc2626',All:'#4f46e5'};
+async function lcFetch(){const n=$('lc').value.trim();if(!n)return;localStorage.setItem('lc',n);$('lo').innerHTML='<p class="muted">Loading...</p>';
+ try{const d=await api('/api/external/leetcode/'+encodeURIComponent(n));const u=d.data&&d.data.matchedUser;if(!u){$('lo').innerHTML='<p class="err">User not found</p>';return}
+ const a=u.submitStatsGlobal.acSubmissionNum,max=Math.max(1,...a.filter(x=>x.difficulty!=='All').map(x=>x.count));
+ $('lo').innerHTML=a.map(x=>`<div><b>${esc(x.difficulty)}</b> <span class="muted">${x.count} solved</span><div class="bar"><span style="width:${x.difficulty==='All'?100:Math.round(x.count*100/max)}%;background:${col[x.difficulty]||'#4f46e5'}"></span></div></div>`).join('')}
+ catch(e){$('lo').innerHTML=`<p class="err">${esc(e.message)}</p>`}}
+async function cfFetch(){const n=$('cf').value.trim();if(!n)return;localStorage.setItem('cf',n);$('co').innerHTML='<p class="muted">Loading...</p>';
+ try{const d=await api('/api/external/codeforces/'+encodeURIComponent(n));const u=d.result&&d.result[0];if(!u){$('co').innerHTML='<p class="err">User not found</p>';return}
+ $('co').innerHTML=`<div class="grid">${[['Rating',u.rating],['Max rating',u.maxRating],['Rank',u.rank],['Max rank',u.maxRank]].map(([k,v])=>`<div class="stat"><div><b style="font-size:20px">${esc(v??'-')}</b><span class="muted">${k}</span></div></div>`).join('')}</div>`}
+ catch(e){$('co').innerHTML=`<p class="err">${esc(e.message)}</p>`}}
+async function lcSync(){const n=$('lc').value.trim();if(!n)return;localStorage.setItem('lc',n);
+ try{const d=await api('/api/sync/leetcode/'+encodeURIComponent(n),'POST');toast(`Synced: ${d.added} new, ${d.skipped} already tracked`)}catch(e){toast(e.message,true)}}
+async function ld(site,inp,out,render){const n=$(inp).value.trim();if(!n)return;localStorage.setItem(inp,n);$(out).innerHTML='<p class="muted">Loading...</p>';
+ try{$(out).innerHTML=render(await api('/api/external/'+site+'/'+encodeURIComponent(n)))}catch(e){$(out).innerHTML=`<p class="err">${esc(e.message)}</p>`}}
+const chips=a=>`<div class="grid">${a.map(([k,v])=>`<div class="stat"><div><b style="font-size:20px">${esc(v??'-')}</b><span class="muted">${k}</span></div></div>`).join('')}</div>`;
+const rAc=d=>chips([['Rating',d.rating],['Max rating',d.maxRating],...(d.contests?[['Contests',d.contests]]:[])]);
+const rGh=d=>`<div class="row"><img src="${esc(d.avatar_url)}" width="48" height="48" style="border-radius:50%"><div><b>${esc(d.name||d.login)}</b><div class="muted">@${esc(d.login)}</div></div></div>`+chips([['Repos',d.public_repos],['Followers',d.followers],['Following',d.following]]);
+[['ac','atcoder','ao',rAc],['cc','codechef','cco',rAc],['gh','github','go',rGh]].forEach(([i,s,o,r])=>{$(i).value=localStorage.getItem(i)||'';if($(i).value)ld(s,i,o,r)});
+if($('lc').value)lcFetch();if($('cf').value)cfFetch();
+</script></body></html>

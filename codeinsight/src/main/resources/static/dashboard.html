@@ -1,0 +1,79 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CodeInsight - Dashboard</title>
+<link rel="stylesheet" href="css/style.css"><script src="js/app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script></head>
+<body><main id="main">
+<div class="grid">
+ <div class="card hover stat"><div class="ic">📚</div><div><b id="sT">0</b><span class="muted">Total problems</span></div></div>
+ <div class="card hover stat"><div class="ic">✅</div><div><b id="sS">0</b><span class="muted">Solved</span></div></div>
+ <div class="card hover stat"><div class="ic">🔥</div><div><b id="sC">0</b><span class="muted">Current streak</span></div></div>
+ <div class="card hover stat"><div class="ic">🏆</div><div><b id="sL">0</b><span class="muted">Longest streak</span></div></div>
+ <div class="card hover stat"><div class="ic">📈</div><div><b id="sW">0</b><span class="muted" id="sWd">This week</span></div></div>
+ <div class="card hover stat"><div class="ic">🎯</div><div><b id="sR">0%</b><span class="muted">Solve rate</span></div></div>
+</div>
+<div class="card"><div class="row" style="justify-content:space-between;margin:0"><h3 style="margin:0">⚡ <span id="lv">Level 1</span> · <span id="rk">Rookie</span></h3><span class="muted" id="xpt"></span></div><div class="bar" style="height:14px;margin:12px 0 0"><span id="xpb" style="width:0;background:linear-gradient(90deg,#6366f1,#ec4899)"></span></div></div>
+<div class="grid g2"><div class="card hover"><h3>🎯 Daily goal</h3><div class="row" style="justify-content:center"><svg id="ring" width="140" height="140" viewBox="0 0 120 120" style="cursor:pointer" onclick="setGoal()"><defs><linearGradient id="g"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#ec4899"/></linearGradient></defs><circle cx="60" cy="60" r="52" fill="none" stroke="var(--border)" stroke-width="10"/><circle id="arc" cx="60" cy="60" r="52" fill="none" stroke="url(#g)" stroke-width="10" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7" transform="rotate(-90 60 60)" style="transition:stroke-dashoffset 1s"/><text id="gt" x="60" y="66" text-anchor="middle" font-size="22" font-weight="700" fill="currentColor">0/3</text></svg></div><p class="muted" style="text-align:center">Click the ring to change your daily goal</p></div>
+<div class="card"><h3>🏅 Achievements <span class="muted" id="bn"></span></h3><div class="badges" id="badges"></div></div></div>
+<div class="card"><h3>Activity (last 17 weeks)</h3><div class="heat" id="heat"></div></div>
+<div class="grid g2">
+ <div class="card"><h3>Last 14 days</h3><canvas id="c1" height="130"></canvas></div>
+ <div class="card"><h3>By difficulty</h3><canvas id="c2" height="130"></canvas></div>
+ <div class="card"><h3>By topic</h3><canvas id="c3" height="130"></canvas></div>
+ <div class="card"><h3>By platform</h3><canvas id="c4" height="130"></canvas></div>
+ <div class="card"><h3>💡 Smart insights</h3><div id="ins"></div></div>
+ <div class="card"><h3>🔁 Due for review <span class="muted" id="dn"></span> <button class="sm" style="float:right" onclick="startReview()">▶ Start review</button></h3><div id="due"></div></div>
+ <div class="card"><h3>⭐ Revision queue <span class="muted" id="rn"></span></h3><div id="rev"></div></div>
+</div>
+<div class="modal hidden" id="rm"><div class="box" style="text-align:center"><div class="muted" id="rp"></div><h2 id="rt" style="margin:18px 0"></h2>
+<div id="rb"><button onclick="flip()">Reveal details</button></div>
+<div id="rf" class="hidden"><div id="rbk"></div><div class="row" style="justify-content:center"><button class="dan" onclick="rate(false)">😕 Forgot</button><button onclick="rate(true)">✅ Remembered</button></div></div>
+<p><button class="ghost sm" onclick="$('rm').classList.add('hidden')">Close</button></p></div></div></main>
+<script>
+shell('dashboard','Dashboard');
+const charts={};
+function draw(id,type,data,solid){charts[id]&&charts[id].destroy();const tx=document.documentElement.dataset.theme==='dark'?'#e2e8f0':'#334155';
+ charts[id]=new Chart($(id),{type,data:{labels:Object.keys(data),datasets:[{data:Object.values(data),borderRadius:5,backgroundColor:solid||['#16a34a','#d97706','#dc2626','#4f46e5','#0ea5e9','#9333ea','#14b8a6']}]},
+ options:{animation:{duration:900},onClick:(e,els)=>{if(els.length)drill(id,Object.keys(data)[els[0].index])},onHover:(e,els)=>{e.native.target.style.cursor=els.length?'pointer':'default'},plugins:{legend:{display:type==='doughnut',labels:{color:tx}}},scales:type==='bar'?{x:{ticks:{color:tx}},y:{beginAtZero:true,ticks:{precision:0,color:tx}}}:{}}})}
+async function load(){
+ const s=await api('/api/stats');extras(s);extras2(s);
+ countUp($('sT'),s.total);countUp($('sS'),s.solved);countUp($('sC'),s.currentStreak);countUp($('sL'),s.longestStreak);
+ const e=Object.entries(s.last119Days);const pad=new Date(e[0][0]+'T00:00:00').getDay();
+ $('heat').innerHTML='<i class="e"></i>'.repeat(pad)+e.map(([d,c])=>`<i class="l${Math.min(c,4)}" data-d="${d}" title="${d}: ${c} solved (click to view)"></i>`).join('');
+ draw('c1','bar',Object.fromEntries(Object.entries(s.last14Days).map(([d,c])=>[d.slice(5),c])),'#4f46e5');
+ draw('c2','doughnut',s.byDifficulty);draw('c3','bar',s.byTopic);
+ const r=await api('/api/problems?revision=true');$('rn').textContent='('+r.length+')';
+ $('rev').innerHTML=r.slice(0,6).map(p=>`<div class="row" style="justify-content:space-between;margin:6px 0"><span>${esc(p.title)}</span><span class="badge ${esc(p.difficulty)}">${esc(p.difficulty)}</span></div>`).join('')||'<p class="muted">Nothing flagged. Star a problem to add it here.</p>'}
+async function loadDue(){const d=await api('/api/problems/due');$('dn').textContent='('+d.length+')';
+ $('due').innerHTML=d.slice(0,6).map(p=>`<div class="row" style="justify-content:space-between;margin:6px 0"><span>${esc(p.title)} <span class="muted">· reviewed ${p.reviewCount||0}x</span></span><button class="sm" onclick="done(${p.id})">Done</button></div>`).join('')||'<p class="muted">All caught up 🎉</p>'}
+async function done(id){await api('/api/problems/'+id+'/reviewed','POST');toast('Review logged, next one scheduled');loadDue()}
+function extras(s){const goal=+localStorage.getItem('goal')||3,k=Object.keys(s.last14Days),day=k[k.length-1],today=s.last14Days[day];
+ $('gt').textContent=Math.min(today,goal)+'/'+goal;$('arc').style.strokeDashoffset=326.7*(1-Math.min(1,today/goal));
+ if(today>=goal&&localStorage.getItem('celebrated')!==day){localStorage.setItem('celebrated',day);confetti();toast('🎉 Daily goal reached!')}
+ const B=[['🌱','First solve',s.solved>=1],['🔟','10 solved',s.solved>=10],['🚀','50 solved',s.solved>=50],['💯','100 solved',s.solved>=100],['🔥','7-day streak',s.longestStreak>=7],['⚡','30-day streak',s.longestStreak>=30],['🧗','Beat a Hard',(s.byDifficulty.Hard||0)>=1],['🧭','5 topics',Object.keys(s.byTopic).length>=5]];
+ $('bn').textContent=`(${B.filter(b=>b[2]).length}/${B.length})`;
+ $('badges').innerHTML=B.map(([i,t,u])=>`<div class="bdg ${u?'on':''}" title="${t}${u?'':' (locked)'}"><span>${i}</span><small>${t}</small></div>`).join('')}
+function xpCard(s){const b=s.byDifficulty,xp=(b.Easy||0)*10+(b.Medium||0)*20+(b.Hard||0)*40,lv=Math.floor(Math.sqrt(xp/50))+1,lo=50*(lv-1)**2,hi=50*lv*lv,T=['Rookie','Bronze','Silver','Gold','Platinum','Diamond','Grandmaster'];
+ $('lv').textContent='Level '+lv;$('rk').textContent=T[Math.min(T.length-1,Math.floor((lv-1)/2))];$('xpt').textContent=`${xp} XP · ${hi-xp} to next level (Easy 10, Medium 20, Hard 40)`;
+ setTimeout(()=>$('xpb').style.width=Math.round((xp-lo)*100/(hi-lo))+'%',100);
+ const old=+localStorage.getItem('lvl');if(old&&lv>old){confetti();toast('🆙 Level up! You are now level '+lv)}localStorage.setItem('lvl',lv)}
+function drill(id,label){const k={c2:'difficulty',c3:'q',c4:'platform'}[id];if(k)location.href='problems.html?'+k+'='+encodeURIComponent(label)}
+let deck=[],di=0;
+async function startReview(){deck=await api('/api/problems/due');if(!deck.length){toast('Nothing due 🎉');return}di=0;$('rm').classList.remove('hidden');card()}
+function card(){if(di>=deck.length){$('rm').classList.add('hidden');confetti();toast('Review session complete 🎉');loadDue();return}
+ const p=deck[di];$('rp').textContent=`Card ${di+1} of ${deck.length}`;$('rt').textContent=p.title;$('rf').classList.add('hidden');$('rb').classList.remove('hidden');
+ $('rbk').innerHTML=`<p><b>${esc(p.difficulty)}</b> · ${esc(p.topic||'No topic')} · ${esc(p.platform)}</p>${p.notes?`<p>${esc(p.notes)}</p>`:'<p class="muted">No notes saved.</p>'}${p.link?`<a href="${esc(p.link)}" target="_blank" rel="noopener">Open problem</a>`:''}`}
+const flip=()=>{$('rf').classList.remove('hidden');$('rb').classList.add('hidden')};
+async function rate(ok){if(ok)await api('/api/problems/'+deck[di].id+'/reviewed','POST');di++;card()}
+function extras2(s){xpCard(s);const v=Object.values(s.last14Days),sum=a=>a.reduce((x,y)=>x+y,0),tw=sum(v.slice(7)),lw=sum(v.slice(0,7)),df=tw-lw;
+ $('sW').textContent=tw;$('sWd').textContent=`This week ${df>=0?'▲':'▼'} ${Math.abs(df)} vs last`;
+ $('sR').textContent=s.total?Math.round(s.solved*100/s.total)+'%':'0%';draw('c4','doughnut',s.byPlatform);
+ const core=['Array','String','Dynamic Programming','Graph','Tree','Greedy','Binary Search','Hash','Stack','Linked List'],keys=Object.keys(s.byTopic),
+ missing=core.filter(c=>!keys.some(k=>k.toLowerCase().includes(c.toLowerCase()))),top=Object.entries(s.byTopic).sort((a,b)=>b[1]-a[1])[0],I=[];
+ if(top)I.push(`💪 Strongest topic: <b>${esc(top[0])}</b> (${top[1]} solved)`);
+ if(missing.length)I.push(`🧭 Not started: <b>${missing.slice(0,4).map(esc).join(', ')}</b>`);
+ if(!(s.byDifficulty.Hard||0))I.push('🧗 No Hard problems yet. Try one this week.');
+ if(s.currentStreak===0)I.push('🔥 Solve one problem today to start a streak.');else I.push(`🔥 ${s.currentStreak}-day streak. Keep it going!`);
+ $('ins').innerHTML=I.map(t=>`<p style="margin:8px 0">${t}</p>`).join('')}
+function setGoal(){const g=prompt('Problems per day?',localStorage.getItem('goal')||3);if(+g>0){localStorage.setItem('goal',+g);load()}}
+$('heat').onclick=e=>{const d=e.target.dataset&&e.target.dataset.d;if(d)location.href='problems.html?date='+d};
+window.onTheme=load;load();loadDue();
+</script></body></html>

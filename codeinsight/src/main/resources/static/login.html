@@ -1,0 +1,22 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CodeInsight - Login</title>
+<link rel="stylesheet" href="css/style.css"><script src="js/app.js"></script></head>
+<body><div class="auth">
+<div class="hero"><h1>&lt;/&gt; CodeInsight</h1><p>Track every problem. Grow every day.</p>
+<ul><li>📊 Analytics by difficulty, topic and platform</li><li>🔥 Daily streaks and an activity heatmap</li><li>⭐ Revision list for problems to revisit</li><li>🌐 LeetCode and Codeforces profile sync</li></ul></div>
+<div class="form"><div class="card"><div class="tabs"><button id="tL" class="on" onclick="mode(true)">Login</button><button id="tR" onclick="mode(false)">Register</button></div>
+<input id="u" placeholder="Username"><input id="p" type="password" placeholder="Password"><div class="err" id="e"></div>
+<button id="go" style="width:100%" onclick="submit()">Login</button>
+<div id="ghBox" class="hidden" style="margin-top:12px"><a href="/api/auth/github"><button class="ghost" style="width:100%">🐙 Continue with GitHub</button></a></div></div></div></div>
+<script>
+const hp=new URLSearchParams(location.hash.slice(1));   // returning from GitHub OAuth
+if(hp.get('token')){localStorage.setItem('token',hp.get('token'));localStorage.setItem('user',hp.get('user'));location.replace('dashboard.html')}
+if(token())location.replace('dashboard.html');
+fetch('/api/auth/providers').then(r=>r.json()).then(p=>{if(p.github)ghBox.classList.remove('hidden')}).catch(()=>{});
+let login=true;
+function mode(l){login=l;tL.classList.toggle('on',l);tR.classList.toggle('on',!l);go.textContent=l?'Login':'Create account';e.textContent=''}
+async function submit(){e.textContent='';try{const c={username:u.value,password:p.value};
+ if(!login)await api('/api/auth/register','POST',c);
+ const d=await api('/api/auth/login','POST',c);localStorage.setItem('token',d.token);localStorage.setItem('user',d.username);location.href='dashboard.html'}
+ catch(x){e.textContent=x.message}}
+document.addEventListener('keydown',x=>{if(x.key==='Enter')submit()});
+</script></body></html>

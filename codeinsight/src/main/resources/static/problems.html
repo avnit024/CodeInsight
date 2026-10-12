@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CodeInsight - Problems</title>
+<link rel="stylesheet" href="css/style.css"><script src="js/app.js"></script></head>
+<body><main id="main"><div class="card">
+<div class="row"><input type="search" id="q" placeholder="🔍 Search title, topic, notes..." oninput="clearTimeout(T);T=setTimeout(load,250)">
+<select id="fd" onchange="load()"><option value="">Difficulty</option><option>Easy</option><option>Medium</option><option>Hard</option></select>
+<select id="fs" onchange="load()"><option value="">Status</option><option>Solved</option><option>Attempted</option><option>Todo</option></select>
+<select id="fp" onchange="load()"><option value="">Platform</option><option>LeetCode</option><option>Codeforces</option><option>CodeChef</option><option>GeeksforGeeks</option><option>AtCoder</option><option>HackerRank</option><option>Other</option></select>
+<label class="muted"><input type="checkbox" id="fr" onchange="load()"> ⭐ only</label>
+<button class="ghost" onclick="csv()">Export CSV</button><button class="ghost" onclick="toggleView()" title="Toggle board (B)">🗂 Board</button><button class="ghost" onclick="rnd()">🎲 Random todo</button><button onclick="openForm()">+ Add problem</button></div>
+<div id="board" class="kan hidden"></div><div id="tw" style="overflow-x:auto"><table><thead><tr><th></th><th>Title</th><th>Platform</th><th>Difficulty</th><th>Topic</th><th>Status</th><th>Solved on</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="pager" id="pg"><span class="muted" id="pi"></span><button class="ghost sm" onclick="go(-1)">Prev</button><button class="ghost sm" onclick="go(1)">Next</button></div></div>
+<div class="modal hidden" id="modal"><div class="box"><h3 id="mt">Add problem</h3><div class="f">
+<input class="w" id="f_t" placeholder="Title"><select id="f_p"><option>LeetCode</option><option>Codeforces</option><option>CodeChef</option><option>GeeksforGeeks</option><option>AtCoder</option><option>HackerRank</option><option>Other</option></select>
+<select id="f_d"><option>Easy</option><option selected>Medium</option><option>Hard</option></select><input id="f_o" placeholder="Topic"><select id="f_s"><option>Solved</option><option>Attempted</option><option>Todo</option></select>
+<input class="w" id="f_l" placeholder="Link (optional)"><input class="w" id="f_n" placeholder="Notes (optional)"><label class="muted w"><input type="checkbox" id="f_r"> ⭐ Needs revision</label></div>
+<div class="err" id="fe"></div><div class="row" style="justify-content:flex-end"><button class="ghost" onclick="closeForm()">Cancel</button><button onclick="save()">Save</button></div></div></div>
+<div class="modal hidden" id="hm"><div class="box"><h3>💡 AI hint</h3><div id="hb" style="white-space:pre-wrap;margin:12px 0"></div>
+<div class="row" style="justify-content:flex-end"><button class="ghost" onclick="$('hm').classList.add('hidden')">Close</button><button onclick="hint(hid,'approach')">Bigger hint</button></div></div></div>
+</main>
+<script>
+shell('problems','Problems');
+let C=[],pg=0,eid=null,T,SZ=10,board=false;
+const U=new URLSearchParams(location.search); // filters coming from dashboard click-through
+[['difficulty','fd'],['status','fs'],['platform','fp'],['q','q']].forEach(([k,i])=>U.get(k)&&($(i).value=U.get(k)));
+if(U.get('date'))toast('Showing problems solved on '+U.get('date'));
+async function load(){const P=new URLSearchParams();[['search','q'],['difficulty','fd'],['status','fs'],['platform','fp']].forEach(([k,i])=>$(i).value&&P.set(k,$(i).value));
+ $('fr').checked&&P.set('revision','true');C=await api('/api/problems?'+P);if(U.get('date'))C=C.filter(p=>p.solvedDate===U.get('date'));pg=0;render()}
+function render(){const n=Math.max(1,Math.ceil(C.length/SZ));pg=Math.min(pg,n-1);
+ $('rows').innerHTML=C.slice(pg*SZ,pg*SZ+SZ).map(p=>`<tr><td><button class="star ${p.needsRevision?'on':''}" onclick="rev(${p.id})">★</button></td>
+ <td>${p.link?`<a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.title)}</a>`:esc(p.title)}${p.notes?`<div class="muted">${esc(p.notes)}</div>`:''}</td>
+ <td>${esc(p.platform)}</td><td><span class="badge ${esc(p.difficulty)}">${esc(p.difficulty)}</span></td><td>${esc(p.topic)}</td>
+ <td><span class="badge status ${esc(p.status)}" title="Click to change status" onclick="cycle(${p.id})">${esc(p.status)}</span></td><td class="muted">${esc(p.solvedDate||'')}</td>
+ <td style="white-space:nowrap"><button class="sm ghost" title="AI hint" onclick="hint(${p.id})">💡</button> <button class="sm" onclick="openForm(${p.id})">Edit</button> <button class="dan sm" onclick="del(${p.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan="8" class="muted">No problems found.</td></tr>';
+ $('pi').textContent=`${C.length} problem(s) - page ${pg+1}/${n}`;if(board)renderBoard()}
+const go=d=>{pg=Math.max(0,pg+d);render()};
+const upd=async(id,ch,m)=>{const p=C.find(x=>x.id===id);await api('/api/problems/'+id,'PUT',{...p,...ch});toast(m);load()};
+const rev=id=>upd(id,{needsRevision:!C.find(x=>x.id===id).needsRevision},'Revision flag updated');
+const cycle=id=>{const o=['Todo','Attempted','Solved'];const s=C.find(x=>x.id===id).status;upd(id,{status:o[(o.indexOf(s)+1)%3]},'Status updated')};
+function openForm(id){eid=id||null;const p=id?C.find(x=>x.id===id):{platform:'LeetCode',difficulty:'Medium',status:'Solved'};
+ $('mt').textContent=id?'Edit problem':'Add problem';$('fe').textContent='';
+ [['f_t','title'],['f_p','platform'],['f_d','difficulty'],['f_o','topic'],['f_s','status'],['f_l','link'],['f_n','notes']].forEach(([i,k])=>$(i).value=p[k]||'');
+ $('f_r').checked=!!p.needsRevision;$('modal').classList.remove('hidden');$('f_t').focus()}
+const closeForm=()=>$('modal').classList.add('hidden');
+$('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeForm()});
+async function save(){const b={title:$('f_t').value,platform:$('f_p').value,difficulty:$('f_d').value,topic:$('f_o').value,status:$('f_s').value,link:$('f_l').value,notes:$('f_n').value,needsRevision:$('f_r').checked};
+ try{await api(eid?'/api/problems/'+eid:'/api/problems',eid?'PUT':'POST',b);closeForm();toast('Saved');load()}catch(e){$('fe').textContent=e.message}}
+async function del(id){if(confirm('Delete this problem?')){await api('/api/problems/'+id,'DELETE');toast('Deleted');load()}}
+function csv(){const c=['title','platform','difficulty','topic','status','solvedDate','needsRevision','link','notes'],q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([[c.join(',')].concat(C.map(p=>c.map(k=>q(p[k])).join(','))).join('\n')],{type:'text/csv'}));a.download='problems.csv';a.click()}
+function toggleView(){board=!board;$('tw').classList.toggle('hidden',board);$('pg').classList.toggle('hidden',board);$('board').classList.toggle('hidden',!board);render()}
+function renderBoard(){$('board').innerHTML=['Todo','Attempted','Solved'].map(s=>{const L=C.filter(p=>p.status===s);
+ return `<div class="col" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="drop(event,'${s}')"><h4><span class="badge ${s}">${s}</span> <span class="muted">${L.length}</span></h4>`+
+ (L.map(p=>`<div class="kc" draggable="true" ondragstart="event.dataTransfer.setData('text',${p.id})"><b>${esc(p.title)}</b><div class="muted">${esc(p.platform)} · <span class="badge ${esc(p.difficulty)}">${esc(p.difficulty)}</span></div></div>`).join('')||'<p class="muted">Drop cards here</p>')+'</div>'}).join('')}
+function drop(e,s){e.preventDefault();const id=+e.dataTransfer.getData('text'),p=C.find(x=>x.id===id);if(p&&p.status!==s)upd(id,{status:s},'Moved to '+s);else renderBoard()}
+let hid;
+async function hint(id,l='nudge'){hid=id;const p=C.find(x=>x.id===id);$('hm').classList.remove('hidden');$('hb').textContent='Thinking...';
+ try{const d=await api('/api/ai/hint','POST',{title:p.title,platform:p.platform,difficulty:p.difficulty,topic:p.topic,level:l});$('hb').textContent=d.hint}catch(e){$('hb').textContent=e.message}}
+async function rnd(){const t=await api('/api/problems?status=Todo');if(!t.length){toast('No Todo problems. Add some first!',true);return}
+ const p=t[Math.floor(Math.random()*t.length)];toast('🎲 '+p.title+' ('+p.difficulty+')');if(p.link)window.open(p.link,'_blank','noopener')}
+if(location.search.includes('add'))openForm();
+load();
+</script></body></html>

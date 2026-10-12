@@ -1,0 +1,10 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    { "type": "java", "name": "CodeInsight (H2 - no setup)", "request": "launch",
+      "mainClass": "com.codeinsight.CodeInsightApplication", "projectName": "codeinsight" },
+    { "type": "java", "name": "CodeInsight (MySQL)", "request": "launch",
+      "mainClass": "com.codeinsight.CodeInsightApplication", "projectName": "codeinsight",
+      "args": "--spring.profiles.active=mysql" }
+  ]
+}
